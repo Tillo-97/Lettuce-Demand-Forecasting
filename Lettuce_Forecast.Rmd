@@ -99,7 +99,7 @@ plot.ts(restaurant_4904_ts, main="Daily lettuce demand of restuarant_4904", xlab
 ```
 As we can see above, we have created time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
 
-Next we will carry out a seasonal decomposition of the tie=me series to determine wether the trend and seasonality factors are significant in our data.
+Next we will carry out a seasonal decomposition of the time series to determine wether the trend and seasonality factors are significant in our data.
 ```{r}
 # Seasonal Decomposition of Time Series by Loess stl()
 plot(stl(restaurant_4904_ts, s.window = "period"), main="Seasonal Decomposition of Time Series for Lettuce Demand of restaurant_4904")  
