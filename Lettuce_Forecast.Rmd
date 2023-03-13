@@ -1,0 +1,267 @@
+##Preprocessing
+
+In order to carry out this project, we will need to preprocess all the data we have been given.
+```{r}
+#import necessary libraries
+library(dplyr)
+library(forecast)
+library(tseries)
+library(ggplot2)
+```
+
+```{r}
+#Read CSV files
+ingredients <- read.csv("ingredients.csv")
+menu_items <- read.csv("menu_items.csv")
+menuitem <- read.csv("menuitem.csv")
+portion_uom_types <- read.csv("portion_uom_types.csv")
+pos_ordersale <- read.csv("pos_ordersale.csv")
+recipe_ingredient_assignments <- read.csv("recipe_ingredient_assignments.csv")
+sub_recipe_ingr_assignments <- read.csv("sub_recipe_ingr_assignments.csv")
+recipes <- read.csv("recipes.csv")
+sub_recipes <- read.csv("sub_recipes.csv")
+recipe_sub_recipe_assignments <- read.csv("recipe_sub_recipe_assignments.csv")
+store_restaurant <- read.csv("store_restaurant.csv")
+```
+
+The first thing we will do is merge the ingredients and portion_uom_types data so we can see the quantity in ounces.
+```{r}
+# Merge ingredients and portion_uom_types
+ingredients.ounces <- merge (ingredients,portion_uom_types)
+ingredients.ounces[ingredients.ounces$IngredientId == 27,] 
+```
+
+###Find The Total Quantity Of Lettuce Required For Each Recipe 
+Next we will need to find the total quantity of lettuce that will be needed for each recipe.
+```{r}
+#Recipes with lettuce
+recipes_lettuce <- recipe_ingredient_assignments[recipe_ingredient_assignments$IngredientId == 27,c(1,3)]
+
+#Subrecipes with lettuce
+sub_recipes_lettuce <- sub_recipe_ingr_assignments[sub_recipe_ingr_assignments$IngredientId == 27, c(1,3)]
+
+#Recipes with their sub recipes that have lettuce
+recipes_sub_recipes_lettuce <- inner_join(sub_recipes_lettuce, recipe_sub_recipe_assignments, by = "SubRecipeId")
+
+#Calculate the actual quantity of lettuce in subrecipe included in recipe
+recipes_sub_recipes_lettuce$Lettuce_Quantity <- recipes_sub_recipes_lettuce$Factor * recipes_sub_recipes_lettuce$Quantity
+
+#Calculate the total quantity of lettuce per recipe based on subrecipes quantity of lettuce due to some recipes having more than 1 subrecipe
+recipes_sub_recipes_total_lettuce_quantity <- aggregate( cbind(Lettuce_Quantity) ~ RecipeId, sum, data = recipes_sub_recipes_lettuce)
+
+#Create a new CSV file that contains data on the total quantity of lettuce per recipe 
+colnames(recipes_sub_recipes_total_lettuce_quantity) <- c("RecipeId","Quantity")
+lettuce_recipes <- rbind(recipes_lettuce, recipes_sub_recipes_total_lettuce_quantity)
+lettuce_quantity_per_recipe <- aggregate(cbind(Quantity) ~ RecipeId, sum, data = lettuce_recipes)
+write.csv(total_lettuce_per_recipe, file ="lettuce_quantity_per_recipe.csv")
+
+```
+We created a new data frame total_lettuce_per_recipe which contains the various RecipeId that use lettuce and the quantity of lettuce required by each Recipe.
+
+###Find The Total Quantity Of Lettuce Used Per Day By Each Restaurant
+Finally, we will find the quantity of lettuce used by each restaurant.
+```{r}
+#Calculate the recipe id and lettuce_quantity per menuitem and keep the menuitems that include lettuce only
+lettuce_menuitem <- inner_join(menuitem, menu_items, by = c("Id" = "MenuItemId"))
+lettuce_menuitem <- inner_join(lettuce_menuitem, lettuce_quantity_per_recipe, by = "RecipeId")
+colnames(lettuce_menuitem)[20] <- "Lettuce_Quantity"
+
+#Calculate the total quantity of lettuce per menu item and transaction
+lettuce_menuitem$Total_Lettuce_Quantity <- lettuce_menuitem$Quantity.x * lettuce_menuitem$Lettuce_Quantity
+
+#Calculate the total quantity of lettuce per day for each restaurant
+restaurant_4904  <- aggregate(cbind(Total_Lettuce_Quantity) ~ date, sum, data = lettuce_menuitem[lettuce_menuitem$StoreNumber == 4904, c(15,21)])
+restaurant_12631 <- aggregate(cbind(Total_Lettuce_Quantity) ~ date, sum, data = lettuce_menuitem[lettuce_menuitem$StoreNumber == 12631, c(15,21)])
+restaurant_20974 <- aggregate(cbind(Total_Lettuce_Quantity) ~ date, sum, data = lettuce_menuitem[lettuce_menuitem$StoreNumber == 20974, c(15,21)])
+restaurant_46673 <- aggregate(cbind(Total_Lettuce_Quantity) ~ date, sum, data = lettuce_menuitem[lettuce_menuitem$StoreNumber == 46673, c(15,21)])
+
+#Delete first 6 rows from restaurant 20974 as there is some sequential data missing in the date column
+restaurant_20974_clean <- restaurant_20974[-c(1:6),]
+
+#Create new CSV files that contains data on the total quantity of lettuce used per day in each restaurant
+write.csv(restaurant_4904, file ="restaurant_4904.csv")
+write.csv(restaurant_12631, file ="restaurant_12631.csv")
+write.csv(restaurant_20974, file ="restaurant_20974.csv")
+write.csv(restaurant_20974_clean, file ="restaurant_20974_clean.csv")
+write.csv(restaurant_46673, file ="restaurant_46673.csv")
+```
+We created new dataframes called restaurant_4904, restaurant_12631, restaurant_20974 and restaurant_46673 which contains the date and the quantity of lettuce used on a specific date for each of the restaurants. We noticed that some dates for restaurant_20974 are missing for example after 15-03-06, the next date is 15-03-10. We decided to remove dates that werent consistent and so we removed the first 6 data points for this data frame and created a new data frame called restaurant_20974_clean.
+
+##Analysis on Restaurant 4904
+###Holt Winters Model
+We will first forecast the demand for restaurant_4904 using the Holt Winters model.
+```{r}
+#Convert data to a time series
+restaurant_4904_ts <- ts(restaurant_4904[, 2], frequency = 7, start = c(03, 13))
+
+# Plot of the time-series
+plot.ts(restaurant_4904_ts, main="Daily lettuce demand of restuarant_4904", xlab="Time (days)", ylab="Lettuce Quantity (ounces)")
+```
+As we can see above, we have created time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
+
+```{r}
+# Seasonal Decomposition of Time Series by Loess stl()
+plot(stl(restaurant_4904_ts, s.window = "period"), main="Seasonal Decomposition of Time Series for Lettuce Demand of restaurant_4904")  
+```
+From the plot, we can see that the grey bars for the trend are very long and so we can say trend is not signinficant and ignore it.
+
+```{r}
+#Split training and test set (80:20 split)
+training_set_4904   <- window(restaurant_4904_ts, end = c(05, 27))
+test_set_4904 <- window(restaurant_4904_ts, start = c(05, 28))
+```
+We have split our data into a training and test set with 80% being used for training and 20% for testing.
+
+
+```{r}
+# Find optimal value of the parameters using ets function
+restaurant_4904.HW <- HoltWinters(training_set_4904, beta = FALSE)
+restaurant_4904.ets <- ets(training_set_4904, model = "ANA")
+restaurant_4904.ets
+restaurant_4904.ets2 <- ets(training_set_4904, model = "ZZZ")
+```
+We have used the ets function which can fit a broader range of exponential smoothing models, including models with different error structures (such as additive or multiplicative errors), different types of trends (such as linear, exponential, or damped), and different types of seasonality (such as additive or multiplicative). It uses a likelihood-based approach to select the best model among a set of candidate models, based on how well they fit the observed data. For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted model and specified "ZZZ" which means it will return a model with the lowest AIC and the results we got from this were exactly the same as our ANA model so we can be confident this is the correct model.
+
+```{r}
+# out-of-sample evaluation
+restaurant_4904.ets.f <- forecast(restaurant_4904.ets, h = 14)
+restaurant_4904.ets.f
+
+plot(restaurant_4904.ets.f)
+lines(fitted(restaurant_4904.ets.f), col = "blue", lty = 2)
+```
+We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see in our results and in the graph the 80% and 95% boundaries.
+
+Next we will look at the accuracy of the model.
+```{r}
+# forecasting error
+accuracy(restaurant_4904.ets.f, test_set_4904)
+```
+We can see our forecast errors for the training and test sets above.
+
+Finally, we can use our model to forecast the entire data sample.
+```{r}
+# re-calibrate model with the entire sample
+restaurant_4904.ets.model <- ets(restaurant_4904_ts, model = "ANA")
+model.ets.f <- forecast(restaurant_4904.ets.model, h = 14)
+autoplot(model.ets.f)
+```
+As we can see in the plot above, we now have our forecast using the ets model.
+
+###Arima Model
+Now we are going to forecast the demand using an ARIMA model so we can make a comparison between both models.
+```{r}
+#Take first order difference make time series stationary
+restaurant_4904_ts_diff1 <- diff(training_set_4904, differences = 1)
+autoplot(restaurant_4904_ts_diff1)
+```
+After taking the first order difference, it appears our timeseries is free of trend or seasonality. To be sure we will carry out stationary tests.
+
+```{r}
+# stationary test
+adf.test(restaurant_4904_ts_diff1)
+pp.test(restaurant_4904_ts_diff1)
+kpss.test(restaurant_4904_ts_diff1)
+
+#Trend stationarity test
+ndiffs(training_set_4904)
+#Seasonality stationarity test
+nsdiffs(training_set_4904)
+```
+for the Augmented Dickey-Fuller and Phillips-Perron Unit Root Tests, we have a null hypothesis that the time series is not stationary. from our results above, we can see that the p value is smaller than the printed p value which means we can reject the null hypothesis so the time series is stationary. We also took a KPSS test for Level Stationarity and in this test the null hypothesis is that we have a stationary timeseries. From our results above, the p value is greater than the printed p value which means we cannot reject the null so the timeseries is stationary.
+
+Additionally, we have the ndiffs test which tells us how many order differences we need to take to make the timeseries trend stationary and we can see that result is 0 meaning we do not  need to take any order differences for the trend. However, for the seasonality stationarity test, we use the nsdiffs test and we see that we need to take 1 order differences to make the seasonality stationary. 
+
+Therefore, having taken all these tests into account, we are confident that taking the first order differences is the right approach.
+
+Next, we will need to make choices for p, q, P and Q
+```{r}
+# acf plot
+ggAcf(restaurant_4904_ts_diff1) # q <= 1
+
+# pacf plot
+ggPacf(restaurant_4904_ts_diff1) # p <= 1
+```
+When we plot the ACF, we notice that the 7th lag is outside the 95th percentile. So our q value should be less than or equal to 1. Additionally, it indicates that there is likely a recurring pattern every 7 observations. 
+
+When we plot the PACF, we notice that there aren't really any lags that lie outside the 95th percentile although the 4th lag is right below it. It will be a bit trickier to determine the q value from here but it is likely that this is also less than or equal to 1.
+
+Therefore, we will choose the optimal p and q values based on information criteria
+```{r}
+auto.arima(training_set_4904, trace = TRUE)
+# Best model: ARIMA(0,0,0)(1,1,0)[7] with drift (AICc = 228.11)
+# Second best: ARIMA(0,0,1)(1,1,0)[7] with drift (AICc=229.43)
+```
+Using the auto.arima function on our training set, we see that the best model selected is the ARIMA(0,0,0)(1,1,0)[7] with drift as this model has the smallest AICc. We will now explain what each part of the model means below:
+
+The ARIMA(0,0,0) part refers to the non-seasonal component of the model. Specifically, it means that the model includes an autoregressive (AR) term of order 0 (p=0) and a differencing term of order 0 (d=0) and no moving average (MA) term as well (q=0).  
+
+The second (1,1,0) part refers to the seasonal component of the model. Specifically, it means that the model includes a seasonal AR term of order 1, a seasonal differencing term of order 1, and no seasonal MA term. The seasonal AR and differencing terms capture the seasonal patterns in the data, while the lack of a seasonal MA term indicates that there is no significant correlation between the errors at different seasonal lags.
+
+The [7] part refers to the frequency of the seasonality in the data. In this case, the time series has a seasonal pattern that repeats every 7 observations.
+
+We also notice in the models, that there is another model with an AICc close to our selected model and this model is ARIMA(0,0,1)(1,1,0)[7] with drift which has an AICc of 229.43 while our selected model has an AICc of 228.11. We will look at both models in our analysis and compare them.
+
+```{r}
+# two candidate models
+training_set_4904.arima1 <- Arima(training_set_4904, order = c(0,0,0),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
+training_set_4904.arima2 <- Arima(training_set_4904, order = c(0,0,1),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
+```
+We have picked our 2 candidate models and have specified drift as TRUE because it has picked our best models with drift in the selection. the values for p, d, q and the seasonality have all been appropriately specified as well.
+
+Next we will do some post estimation analysis
+```{r}
+#residual analysis
+checkresiduals(training_set_4904.arima1)
+checkresiduals(training_set_4904.arima2)
+```
+For both models, we can see that the residuals have an average around 0 and the variance is pretty much constant. Although we cant expect them to be exactly 0 and the variance to be exactly constant due to the number of observations we have, our results are still close enough to ideal and therefore acceptable.
+
+We also observe from the ACF plots that the residuals are all within the 95% confidence interval. This indicates that there is no residual autocorrelation in either of the models.
+
+From the histogram plots, we see that the residuals are around a mean of 0 and follow a bell shaped curve which signifies they follow a white noise process.
+
+We have also performed a Ljung-Box test on the models which is a statistical test for residual autocorrelation. For this test, the null hypothesis is that there is no residual autocorrelation and we reject it if we get a p value before 0.05. For both our models, we see in our results that the model which was selected as the best model has a p value of 0.059 which means we cannot reject the null. However, for the second model it has a p value of 0.047 which means we reject the null and for this model we conclude the residuals are not random.
+
+Therefore, moving forward we will be sticking with the ARIMA(0,0,0)(1,1,0)[7] with drift.
+
+Now we will evaluate our model
+```{r}
+#forecast evaluation
+restaurant_4904.arima.f <- forecast(training_set_4904.arima1, h = 14)
+restaurant_4904.arima.f
+
+plot(restaurant_4904.arima.f)
+lines(fitted(restaurant_4904.arima.f), col = "red", lty = 2)
+```
+We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see in our results and in the graph the 80% and 95% boundaries.
+
+Next we will look at the accuracy of the model
+```{r}
+# forecasting error
+accuracy(restaurant_4904.arima.f, test_set_4904)
+```
+We can see our forecast errors for the training and test sets above.
+
+Finally, we can use our model to forecast the entire data sample.
+```{r}
+# re-calibrate model with the entire sample
+
+restaurant_4904.arima.model <- Arima(restaurant_4904_ts, order = c(0,0,0),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
+model.arima.f <- forecast(restaurant_4904.arima.model, h = 14)
+autoplot(model.arima.f)
+```
+As we can see in the plot above, we now have our forecast using the arima model.
+
+###Arima and ets Model Comparisons For Restaurant_4904
+We are going to comparing the accuracy of both models based on the Root Mean Squared Errors.
+```{r}
+#Accuracy of both models
+accuracy(restaurant_4904.ets.f, test_set_4904)
+accuracy(restaurant_4904.arima.f, test_set_4904)
+```
+From the error analysis above, we can see that the ets model has a RMSE of 37.63 while the arima model has an error of 55.30. Therefore, we will expect the ets model to have a more accurate forecast of the lettuce demand.
+
+##Analysis on Restaurant 12631
+###Holt Winters Model
+
