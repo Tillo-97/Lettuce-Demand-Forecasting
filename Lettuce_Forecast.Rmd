@@ -122,12 +122,15 @@ restaurant_4904.ets <- ets(training_set_4904, model = "ANA")
 restaurant_4904.ets
 restaurant_4904.ets2 <- ets(training_set_4904, model = "ZZZ")
 ```
-We have used the ets function which can fit a broader range of exponential smoothing models, including models with different error structures (such as additive or multiplicative errors), different types of trends (such as linear, exponential, or damped), and different types of seasonality (such as additive or multiplicative). It uses a likelihood-based approach to select the best model among a set of candidate models, based on how well they fit the observed data. For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted model and specified "ZZZ" which means it will return a model with the lowest AIC and the results we got from this were exactly the same as our ANA model so we can be confident this is the correct model.
+We have used the ets function which can fit a broader range of exponential smoothing models, including models with different error structures (such as additive or multiplicative errors), different types of trends (such as linear, exponential, or damped), and different types of seasonality (such as additive or multiplicative). It uses a likelihood-based approach to select the best model among a set of candidate models, based on how well they fit the observed data. For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted another ets model and specified "ZZZ" which means it will automatically select the error, trend and seasonality types. The results we got from this were exactly the same as our ANA model so we can be confident this is the correct model.
 
 ```{r}
 # out-of-sample evaluation
 restaurant_4904.ets.f <- forecast(restaurant_4904.ets, h = 14)
 restaurant_4904.ets.f
+
+plot(training_set_4904)
+lines(fitted(restaurant_4904.ets.f), col = "red", lty = 2)
 
 plot(restaurant_4904.ets.f)
 lines(fitted(restaurant_4904.ets.f), col = "blue", lty = 2)
@@ -145,8 +148,8 @@ Finally, we can use our model to forecast the entire data sample.
 ```{r}
 # re-calibrate model with the entire sample
 restaurant_4904.ets.model <- ets(restaurant_4904_ts, model = "ANA")
-model.ets.f <- forecast(restaurant_4904.ets.model, h = 14)
-autoplot(model.ets.f)
+restaurant_4904.model.ets.f <- forecast(restaurant_4904.ets.model, h = 14)
+autoplot(restaurant_4904.model.ets.f)
 ```
 As we can see in the plot above, we now have our forecast using the ets model.
 
@@ -235,6 +238,9 @@ restaurant_4904.arima.f
 
 plot(training_set_4904)
 lines(fitted(restaurant_4904.arima.f), col = "red", lty = 2)
+
+plot(restaurant_4904.arima.f)
+lines(fitted(restaurant_4904.arima.f), col = "blue", lty = 2)
 ```
 We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see above how our forecasts compares with the training data.
 
@@ -299,7 +305,7 @@ restaurant_12631.ets
 restaurant_12631.ets2 <- ets(training_set_12631, model = "ZZZ")
 restaurant_12631.ets2
 ```
-For our model we have specified "MNM". This means that the error and seasonality types are multiplicative and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted model and specified "ZZZ" which means it will return a model with the lowest AIC and the results we got from this an ANN model and this model actually gave us a lower AICc value than the previous one (376.12 compared to 385.53) so we will further compare these models and select which we think is better.
+For our model we have specified "MNM". This means that the error and seasonality types are multiplicative and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted another ets model and specified "ZZZ" which means it will automatically select the error, trend and seasonality types. The results we got from this an ANN model and this model actually gave us a lower AICc value than the previous one (376.12 compared to 385.53) so we will further compare these models and select which we think is better.
 
 ```{r}
 # in-sample estimation error
@@ -315,6 +321,9 @@ We see that the first ets model has a smaller mean squared and adjusted mean squ
 # out-of-sample evaluation
 restaurant_12631.ets.f <- forecast(restaurant_12631.ets, h = 14)
 restaurant_12631.ets.f
+
+plot(training_set_12631)
+lines(fitted(restaurant_12631.ets.f), col = "red", lty = 2)
 
 plot(restaurant_12631.ets.f)
 lines(fitted(restaurant_12631.ets.f), col = "blue", lty = 2)
@@ -332,8 +341,8 @@ Finally, we can use our model to forecast the entire data sample.
 ```{r}
 # re-calibrate model with the entire sample
 restaurant_12631.ets.model <- ets(restaurant_12631_ts, model = "MNM")
-model.ets.f <- forecast(restaurant_12631.ets.model, h = 14)
-autoplot(model.ets.f)
+restaurant_12631.model.ets.f <- forecast(restaurant_12631.ets.model, h = 14)
+autoplot(restaurant_12631.model.ets.f)
 ```
 As we can see in the plot above, we now have our forecast using the ets model.
 
@@ -425,10 +434,13 @@ plot(training_set_12631)
 lines(fitted(restaurant_12631.arima.f1), col = "red", lty = 2)
 lines(fitted(restaurant_12631.arima.f2), col = "blue", lty = 2)
 lines(fitted(restaurant_12631.arima.f3), col = "green", lty = 2)
+
+plot(restaurant_12631.arima.f2)
+lines(fitted(restaurant_12631.arima.f2), col = "blue", lty = 2)
 ```
 We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see above how our forecast compares to the training data. From the graph, it looks like the 2nd and 3rd model are a better fit.
 
-Next we will look at the accuracy of the model
+Next we will look at the accuracy of the models
 ```{r}
 # forecasting error
 accuracy(restaurant_12631.arima.f1, test_set_12631)
@@ -457,3 +469,77 @@ From the error analysis above, we can see that the ets model has a RMSE of 42.18
 
 ##Analysis on Restaurant 20974
 ###Holt Winters Model
+
+We will now replicate our analysis for Restaurant_20974 starting with the Holt Winters ets model.
+```{r}
+#Convert data to a time series
+restaurant_20974_ts <- ts(restaurant_20974_clean[, 2], frequency = 7, start = c(03, 20))
+
+#Plot of the time-series
+plot.ts(restaurant_20974_ts, main="Daily lettuce demand of restuarant_20974", xlab="Time (days)", ylab="Lettuce Quantity (ounces)")
+```
+As we can see above, we have created time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
+
+Next we will carry out a seasonal decomposition of the time series to determine whether the trend and seasonality factors are significant in our data.
+```{r}
+#Seasonal Decomposition of Time Series by Loess stl()
+plot(stl(restaurant_20974_ts, s.window = "period"), main="Seasonal Decomposition of Time Series for Lettuce Demand of restaurant_20974")  
+```
+From the plot, we can see that the trend can be ignored but seasonal and error component seem to have an additive parameter
+
+Next, we will split our data into a training and a test set.
+```{r}
+#Split training and test set (80:20 split)
+training_set_20974   <- window(restaurant_20974_ts, end = c(05, 27))
+test_set_20974 <- window(restaurant_20974_ts, start = c(05, 28))
+```
+We have split our data into a training and test set with 80% being used for training and 20% for testing.
+
+```{r}
+# Find optimal value of the parameters using ets function
+restaurant_20974.ets <- ets(training_set_20974, model = "ANA")
+restaurant_20974.ets
+restaurant_20974.ets2 <- ets(training_set_20974, model = "ZZZ")
+restaurant_20974.ets2
+```
+ For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted another ets model and specified "ZZZ" which means it will automatically select the error, trend and seasonality types. The automatically selected model specifies ANN and wee see that our model has a higher AICc but a lower AIC than the automatically selected model. We will carry out some analysis on the estimation error of the models.
+
+```{r}
+# in-sample estimation error
+restaurant_20974.ets$mse
+restaurant_20974.ets2$mse
+restaurant_20974.ets$amse
+restaurant_20974.ets2$amse
+```
+We see that the first ets model has a much smaller mean squared and adjusted mean squared error even though it has a higher AICc. In this case, we want to prioritize model accuracy over model fit and complexity so we will go with the first model.
+
+```{r}
+# in sample performance
+restaurant_20974.ets.f <- forecast(restaurant_20974.ets, h = 14)
+restaurant_20974.ets.f
+
+plot(training_set_20974)
+lines(fitted(restaurant_20974.ets.f), col = "red", lty = 2)
+
+plot(restaurant_20974.ets.f)
+lines(fitted(restaurant_20974.ets.f), col = "blue", lty = 2)
+```
+We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see in our results and in the graph the 80% and 95% boundaries.
+
+Next we will look at the accuracy of the model.
+```{r}
+# forecasting error
+accuracy(restaurant_20974.ets.f, test_set_20974)
+```
+We can see our forecast errors for the training and test sets above.
+
+Finally, we can use our model to forecast the entire data sample.
+```{r}
+# re-calibrate model with the entire sample
+restaurant_20974.ets.model <- ets(restaurant_20974_ts, model = "ANA")
+restaurant_20974.model.ets.f <- forecast(restaurant_20974.ets.model, h = 14)
+autoplot(restaurant_20974.model.ets.f)
+```
+As we can see in the plot above, we now have our forecast using the ets model.
+
+###Arima Model
