@@ -9,6 +9,7 @@ library(tseries)
 library(ggplot2)
 ```
 
+We will start by reading all relevant csv files and creating data frames
 ```{r}
 #Read CSV files
 ingredients <- read.csv("ingredients.csv")
@@ -24,7 +25,7 @@ recipe_sub_recipe_assignments <- read.csv("recipe_sub_recipe_assignments.csv")
 store_restaurant <- read.csv("store_restaurant.csv")
 ```
 
-The first thing we will do is merge the ingredients and portion_uom_types data so we can see the quantity in ounces.
+Next, we will merge the ingredients and portion_uom_types data so we can see the quantity of lettuce demanded in ounces.
 ```{r}
 # Merge ingredients and portion_uom_types
 ingredients.ounces <- merge (ingredients,portion_uom_types)
@@ -85,21 +86,21 @@ write.csv(restaurant_20974, file ="restaurant_20974.csv")
 write.csv(restaurant_20974_clean, file ="restaurant_20974_clean.csv")
 write.csv(restaurant_46673, file ="restaurant_46673.csv")
 ```
-We created new dataframes called restaurant_4904, restaurant_12631, restaurant_20974 and restaurant_46673 which contains the date and the quantity of lettuce used on a specific date for each of the restaurants. We noticed that some dates for restaurant_20974 are missing for example after 15-03-06, the next date is 15-03-10. We decided to remove dates that werent consistent and so we removed the first 6 data points for this data frame and created a new data frame called restaurant_20974_clean.
+We created new dataframes called restaurant_4904, restaurant_12631, restaurant_20974 and restaurant_46673 which contains the date and quantity of lettuce used for each of the restaurants. We noticed that some dates for restaurant_20974 are missing for example after 15-03-06, the next date is 15-03-10. We decided to remove dates that weren't consistent and so we removed the first 6 data points for this data frame and created a new data frame called restaurant_20974_clean.
 
 ##Analysis on Restaurant 4904
 ###Holt Winters Model
-We will first forecast the demand for restaurant_4904 using the Holt Winters model.
+We will first forecast the demand for restaurant_4904 using the Holt Winters ets model.
 ```{r}
-#Convert data to a time series
+# Convert data to a time series
 restaurant_4904_ts <- ts(restaurant_4904[, 2], frequency = 7, start = c(03, 13))
 
-# Plot of the time-series
+# Plot of the time series
 plot.ts(restaurant_4904_ts, main="Daily lettuce demand of restuarant_4904", xlab="Time (days)", ylab="Lettuce Quantity (ounces)")
 ```
-As we can see above, we have created time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
+As we can see above, we have created a time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
 
-Next we will carry out a seasonal decomposition of the time series to determine whether the trend and seasonality factors are significant in our data.
+Next, we will carry out a seasonal decomposition of the time series to better understand the error, trend and seasonality factors in our data.
 ```{r}
 # Seasonal Decomposition of Time Series by Loess stl()
 plot(stl(restaurant_4904_ts, s.window = "period"), main="Seasonal Decomposition of Time Series for Lettuce Demand of restaurant_4904")  
@@ -121,8 +122,11 @@ restaurant_4904.HW <- HoltWinters(training_set_4904, beta = FALSE)
 restaurant_4904.ets <- ets(training_set_4904, model = "ANA")
 restaurant_4904.ets
 restaurant_4904.ets2 <- ets(training_set_4904, model = "ZZZ")
+restaurant_4904.ets2
 ```
-We have used the ets function which can fit a broader range of exponential smoothing models, including models with different error structures (such as additive or multiplicative errors), different types of trends (such as linear, exponential, or damped), and different types of seasonality (such as additive or multiplicative). It uses a likelihood-based approach to select the best model among a set of candidate models, based on how well they fit the observed data. For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted another ets model and specified "ZZZ" which means it will automatically select the error, trend and seasonality types. The results we got from this were exactly the same as our ANA model so we can be confident this is the correct model.
+We have used the ets function which can fit a broader range of exponential smoothing models, including models with different error structures (such as additive or multiplicative errors), different types of trends (such as linear, exponential, or damped), and different types of seasonality (such as additive or multiplicative). It uses a likelihood-based approach to select the best model among a set of candidate models, based on how well they fit the observed data. 
+
+For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted another ets model and specified "ZZZ" which means it will automatically select the error, trend and seasonality types. The results we got from this were exactly the same as our "ANA" model so we can be confident this is the correct model.
 
 ```{r}
 # out-of-sample evaluation
@@ -170,12 +174,13 @@ kpss.test(restaurant_4904_ts_diff1)
 
 #Trend stationarity test
 ndiffs(training_set_4904)
+
 #Seasonality stationarity test
 nsdiffs(training_set_4904)
 ```
-for the Augmented Dickey-Fuller and Phillips-Perron Unit Root Tests, we have a null hypothesis that the time series is not stationary. from our results above, we can see that the p value is smaller than the printed p value which means we can reject the null hypothesis so the time series is stationary. We also took a KPSS test for Level Stationarity and in this test the null hypothesis is that we have a stationary timeseries. From our results above, the p value is greater than the printed p value which means we cannot reject the null so the timeseries is stationary.
+for the Augmented Dickey-Fuller and Phillips-Perron Unit Root Tests, we have a null hypothesis that the time series is not stationary. from our results above, we can see that the p value is smaller than the printed p value which means we can reject the null hypothesis so the time series is stationary. We also took a KPSS test for Level Stationarity and in this test the null hypothesis is that we have a stationary time series. From our results above, the p value is greater than the printed p value which means we cannot reject the null so the time eries is stationary.
 
-Additionally, we have the ndiffs test which tells us how many order differences we need to take to make the timeseries trend stationary and we can see that result is 0 meaning we do not  need to take any order differences for the trend. However, for the seasonality stationarity test, we use the nsdiffs test and we see that we need to take 1 order differences to make the seasonality stationary. 
+Additionally, we have the ndiffs test which tells us how many order differences we need to take to make the time series trend stationary and we can see that result is 0 meaning we do not  need to take any order differences for the trend. However, for the seasonality stationarity test, we use the nsdiffs test and we see that we need to take 1 order differences to make the seasonality stationary. 
 
 Therefore, having taken all these tests into account, we are confident that taking the first order differences is the right approach.
 
@@ -199,7 +204,7 @@ auto.arima(training_set_4904, trace = TRUE)
 ```
 Using the auto.arima function on our training set, we see that the best model selected is the ARIMA(0,0,0)(1,1,0)[7] with drift as this model has the smallest AICc. We will now explain what each part of the model means below:
 
-The ARIMA(0,0,0) part refers to the non-seasonal component of the model. Specifically, it means that the model includes an autoregressive (AR) term of order 0 (p=0) and a differencing term of order 0 (d=0) and no moving average (MA) term as well (q=0).  
+The ARIMA(0,0,0) part refers to the non-seasonal component of the model. Specifically, it means that the model includes an auto-regressive (AR) term of order 0 (p=0) and a differencing term of order 0 (d=0) and no moving average (MA) term as well (q=0).  
 
 The second (1,1,0) part refers to the seasonal component of the model. Specifically, it means that the model includes a seasonal AR term of order 1, a seasonal differencing term of order 1, and no seasonal MA term. The seasonal AR and differencing terms capture the seasonal patterns in the data, while the lack of a seasonal MA term indicates that there is no significant correlation between the errors at different seasonal lags.
 
@@ -208,7 +213,7 @@ The [7] part refers to the frequency of the seasonality in the data. In this cas
 We also notice in the models, that there is another model with an AICc close to our selected model and this model is ARIMA(0,0,1)(1,1,0)[7] with drift which has an AICc of 229.43 while our selected model has an AICc of 228.11. We will look at both models in our analysis and compare them.
 
 ```{r}
-# two candidate models
+# Two candidate models
 training_set_4904.arima1 <- Arima(training_set_4904, order = c(0,0,0),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
 training_set_4904.arima2 <- Arima(training_set_4904, order = c(0,0,1),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
 ```
@@ -216,7 +221,7 @@ We have picked our 2 candidate models and have specified drift as TRUE because i
 
 Next we will do some post estimation analysis
 ```{r}
-#residual analysis
+# Residual analysis
 checkresiduals(training_set_4904.arima1)
 checkresiduals(training_set_4904.arima2)
 ```
@@ -226,9 +231,9 @@ We also observe from the ACF plots that the residuals are all within the 95% con
 
 From the histogram plots, we see that the residuals are around a mean of 0 and follow a bell shaped curve which signifies they follow a white noise process.
 
-We have also performed a Ljung-Box test on the models which is a statistical test for residual autocorrelation. For this test, the null hypothesis is that there is no residual autocorrelation and we reject it if we get a p value below 0.05. For both our models, we see in our results that the model which was selected as the best model has a p value of 0.059 which means we cannot reject the null. However, for the second model it has a p value of 0.047 which means we reject the null and for this model we conclude the residuals are not random for this model.
+We have also performed a Ljung-Box test on the models which is a statistical test for residual autocorrelation. For this test, the null hypothesis is that there is no residual autocorrelation and we reject it if we get a p value below 0.05. For our models, we see in our results that the 1st model has a p value of 0.059 which means we cannot reject the null. However, for the 2nd model it has a p value of 0.047 which means we reject the null and we conclude the residuals are not random for this model.
 
-Therefore, moving forward we will be sticking with the ARIMA(0,0,0)(1,1,0)[7] with drift.
+Therefore, moving forward we will be sticking with the 1st model which is the ARIMA(0,0,0)(1,1,0)[7] with drift.
 
 Now we will evaluate our model
 ```{r}
@@ -253,13 +258,13 @@ We can see our forecast errors for the training and test sets above.
 
 Finally, we can use our model to forecast the entire data sample.
 ```{r}
-# re-calibrate model with the entire sample
-
+# Re-calibrate model with the entire sample
 restaurant_4904.arima.model <- Arima(restaurant_4904_ts, order = c(0,0,0),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
+
 restaurant_4904.model.arima.f <- forecast(restaurant_4904.arima.model, h = 14)
 autoplot(restaurant_4904.model.arima.f)
 ```
-As we can see in the plot above, we now have our forecast using the arima model.
+As we can see in the plot above, we now have our forecast using the ARIMA model.
 
 ###Arima and ets Model Comparisons For Restaurant_4904
 We are going to comparing the accuracy of both models based on the Root Mean Squared Errors.
@@ -268,7 +273,15 @@ We are going to comparing the accuracy of both models based on the Root Mean Squ
 accuracy(restaurant_4904.ets.f, test_set_4904)
 accuracy(restaurant_4904.arima.f, test_set_4904)
 ```
-From the error analysis above, we can see that the ets model has a RMSE of 37.63 while the arima model has an error of 55.30. Therefore, we will expect the ets model to have a more accurate forecast of the lettuce demand.
+From the error analysis above, we can see that the ets model has a RMSE of 37.63 while the ARIMA model has an error of 55.30. Therefore, we will expect the ets model to have a more accurate forecast of the lettuce demand.
+
+Finally, we will show the results for the best model to forecast the demand of lettuce for Restaurant 4904
+```{r}
+#Best model for restaurant 4904
+restaurant_4904.model.ets.f
+autoplot(restaurant_4904.model.ets.f)
+```
+
 
 ##Analysis on Restaurant 12631
 ###Holt Winters Model
@@ -283,7 +296,7 @@ plot.ts(restaurant_12631_ts, main="Daily lettuce demand of restuarant_12631", xl
 ```
 As we can see above, we have created time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
 
-Next we will carry out a seasonal decomposition of the time series to determine whether the trend and seasonality factors are significant in our data.
+Next, we will carry out a seasonal decomposition of the time series to better understand the error, trend and seasonality factors in our data.
 ```{r}
 # Seasonal Decomposition of Time Series by Loess stl()
 plot(stl(restaurant_12631_ts, s.window = "period"), main="Seasonal Decomposition of Time Series for Lettuce Demand of restaurant_12631")  
@@ -382,7 +395,7 @@ ggAcf(restaurant_12631_ts_diff1) # q <= 1
 # pacf plot
 ggPacf(restaurant_12631_ts_diff1) # p <= 2
 ```
-When we plot the ACF, we notice that only the lag is outside the 95th percentile. So our q value is likely less than or equal to 1. 
+When we plot the ACF, we notice that only the 1st lag is outside the 95th percentile. So our q value is likely less than or equal to 1. 
 
 When we plot the PACF, we notice that the 1st and 4th lags are outside the 95th percentile. So our p value is likely less than or equal to 2.
 
@@ -393,8 +406,7 @@ auto.arima(training_set_12631, trace = TRUE)
 # Second best: ARIMA(0,0,0)(1,0,0)[7] with non-zero mean (AICc=349.65)
 # Third best: ARIMA(0,0,0)(0,0,1)[7] with non-zero mean (AICc=349.88)
 ```
-Using the auto.arima function on our training set, we see that the best model selected is the ARIMA(0,0,0) with non-zero mean as this model has the smallest AICc. We will now explain what each part of the model means below:
-
+Using the auto.arima function on our training set, we see that the best model selected is the ARIMA(0,0,0) with non-zero mean as this model has the smallest AICc.
 
 We also notice in the models, that there are 2 other models with AICc values close to our selected model and these models are ARIMA(0,0,0)(1,0,0)[7] with non-zero mean and ARIMA(0,0,0)(0,0,1)[7] with non-zero mean. We will look at all 3 models in our analysis and compare them.
 
@@ -420,7 +432,7 @@ We also observe from the ACF plots that the residuals are all within the 95% con
 
 From the histogram plots, we see that the residuals are around a mean of 0 and follow a bell shaped curve which signifies they follow a white noise process.
 
-We have also performed a Ljung-Box test on the models which is a statistical test for residual autocorrelation. For this test, the null hypothesis is that there is no residual autocorrelation and we reject it if we get a p value greater than 0.05. For all our models, we see in our results that they all have p values above 0.05 so we cannot reject the null hypothesis for any of them.
+We have also performed a Ljung-Box test on the models which is a statistical test for residual autocorrelation. For this test, the null hypothesis is that there is no residual autocorrelation and we reject it if we get a p value smaller than 0.05. For all our models, we see in our results that they all have p values above 0.05 so we cannot reject the null hypothesis for any of them.
 
 Therefore, we will evaluate all the models.
 ```{r}
@@ -654,3 +666,195 @@ From the error analysis above, we can see that the ets model has a RMSE of 85.47
 
 ##Analysis on Restaurant 46673
 ###Holt Winters Model
+We will first forecast the demand for restaurant_46673 using the Holt Winters model.
+```{r}
+#Convert data to a time series
+restaurant_46673_ts <- ts(restaurant_46673[, 2], frequency = 7, start = c(03, 05))
+
+# Plot of the time-series
+plot.ts(restaurant_46673_ts, main="Daily lettuce demand of restuarant_46673", xlab="Time (days)", ylab="Lettuce Quantity (ounces)")
+```
+As we can see above, we have created time series object of our daily lettuce demand. We used a frequency of 7 as we are taking this to be a weekly time series.
+
+Next we will carry out a seasonal decomposition of the time series to determine whether the trend and seasonality factors are significant in our data.
+```{r}
+# Seasonal Decomposition of Time Series by Loess stl()
+plot(stl(restaurant_46673_ts, s.window = "period"), main="Seasonal Decomposition of Time Series for Lettuce Demand of restaurant_46673")  
+```
+From the plot, we can see that the grey bars for the trend are very long and so we can say trend is not significant and ignore it.
+
+Next, we will split our data into a training and a test set.
+```{r}
+#Split training and test set (80:20 split)
+training_set_46673   <- window(restaurant_46673_ts, end = c(05, 25))
+test_set_46673 <- window(restaurant_46673_ts, start = c(05, 26))
+```
+We have split our data into a training and test set with 80% being used for training and 20% for testing.
+
+```{r}
+# Find optimal value of the parameters using ets function
+restaurant_46673.ets <- ets(training_set_46673, model = "ANA")
+restaurant_46673.ets
+restaurant_46673.ets2 <- ets(training_set_46673, model = "ZZZ")
+restaurant_46673.ets2
+```
+For our model we have specified "ANA". This means that the error and seasonal types are additive and the trend type is none because trend isn't significant as we discovered earlier. We can also see our values for alpha and gamma as well as the initial states in the model description above. We also fitted another ets model and specified "ZZZ" which means it will automatically select the error, trend and seasonality types. The results we got from this "MNA" model which has a lower AICc than our specified model.
+
+We will carry out some analysis on the estimation error of the models.
+```{r}
+# in-sample estimation error
+restaurant_46673.ets$mse
+restaurant_46673.ets2$mse
+restaurant_46673.ets$amse
+restaurant_46673.ets2$amse
+```
+We see that the second ets model has a smaller mean squared and adjusted mean squared error. So, "MNA" model has a better fit and accuracy. Therefore, we will use this as our ets model. 
+
+```{r}
+# in sample performance
+restaurant_46673.ets.f <- forecast(restaurant_46673.ets2, h = 14)
+restaurant_46673.ets.f
+
+plot(training_set_46673)
+lines(fitted(restaurant_46673.ets.f), col = "red", lty = 2)
+
+plot(restaurant_46673.ets.f)
+lines(fitted(restaurant_46673.ets.f), col = "blue", lty = 2)
+```
+We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see in our results and in the graph the 80% and 95% boundaries.
+
+Next we will look at the accuracy of the model.
+```{r}
+# forecasting error
+accuracy(restaurant_46673.ets.f, test_set_46673)
+```
+We can see our forecast errors for the training and test sets above.
+
+Finally, we can use our model to forecast the entire data sample.
+```{r}
+# re-calibrate model with the entire sample
+restaurant_46673.ets.model <- ets(restaurant_46673_ts, model = "MNA")
+restaurant_46673.model.ets.f <- forecast(restaurant_46673.ets.model, h = 14)
+autoplot(restaurant_46673.model.ets.f)
+```
+As we can see in the plot above, we now have our forecast using the ets model.
+
+###Arima Model
+Now we are going to forecast the demand using an ARIMA model so we can make a comparison between both models.
+
+```{r}
+#Take first order difference make time series stationary
+restaurant_46673_ts_diff1 <- diff(training_set_46673, differences = 1)
+autoplot(restaurant_46673_ts_diff1)
+```
+After taking the first order difference, it appears our timeseries is free of trend or seasonality. To be sure we will carry out stationary tests.
+
+We will carry out stationary tests to determine if our timeseries is stationary.
+```{r}
+# stationary test
+adf.test(restaurant_46673_ts_diff1)
+pp.test(restaurant_46673_ts_diff1)
+kpss.test(restaurant_46673_ts_diff1)
+
+#Trend stationarity test
+ndiffs(training_set_46673)
+
+#Seasonality stationarity test
+nsdiffs(training_set_46673)
+```
+for the Phillips-Perron Unit Root Tests, we have a null hypothesis that the time series is not stationary. from our results above, we can see that the p value is smaller than the printed p value which means we can reject the null hypothesis so the time series is stationary. We also took a KPSS test for Level Stationarity and in this test the null hypothesis is that we have a stationary timeseries. From our results above, the p value is greater than the printed p value which means we cannot reject the null so the timeseries is stationary.
+
+Additionally, we have the ndiffs test which tells us how many order differences we need to take to make the timeseries trend stationary and we can see that the result is 0 meaning we do not  need to take any order differences for the trend. Additionally, for the seasonality stationarity test, we use the nsdiffs test and we see that the result is 1 meaning we only  need to take any 1 order difference for the seasonality. 
+
+Therefore, having taken all these tests into account, we are confident that the timeseries is now stationary.
+
+Next, we will need to make choices for p, q, P and Q
+```{r}
+# acf plot
+ggAcf(restaurant_46673_ts_diff1) # q <= 4
+# pacf plot
+ggPacf(restaurant_46673_ts_diff1) # p <= 2
+```
+When we plot the ACF, we notice that the 1st, 7th, 12th and 14th lags are outside the 95th percentile. So our q value is likely less than or equal to 4. 
+
+When we plot the PACF, we notice that the 2nd, 5th and 6th lags are outside the 95th percentile. So our p value is likely less than or equal to 3.
+
+We will choose the optimal p and q values based on information criteria
+```{r}
+auto.arima(training_set_46673, trace = TRUE)
+# Best model: ARIMA(1,0,0)(0,1,1)[7] with drift (AICc = 278.06)
+# Second best: ARIMA(1,0,0)(0,1,1)[7] (AICc=279.31)
+# Third best: ARIMA(1,0,0)(1,1,0)[7] with drift (AICc=279.55)
+```
+Using the auto.arima function on our training set, we see that the best model selected is the ARIMA(1,0,0)(0,1,1)[7] with drift as this model has the smallest AICc. 
+
+We also notice in the models, that there are 2 other models with AICc values close to our selected model and these models are ARIMA(1,0,0)(0,1,1)[7] and ARIMA(1,0,0)(1,1,0)[7] with drift. We will look at all 3 models in our analysis and compare them.
+
+```{r}
+# Three candidate models
+training_set_46673.arima1 <- Arima(training_set_46673, order = c(1,0,0), seasonal = list(order = c(0,1,1), period = 7), include.drift = TRUE)
+training_set_46673.arima2 <- Arima(training_set_46673, order = c(1,0,0),seasonal = list(order = c(0,1,1), period = 7))
+training_set_46673.arima3 <- Arima(training_set_46673, order = c(1,0,0),seasonal = list(order = c(1,1,0), period = 7), include.drift = TRUE)
+```
+We have picked our 3 candidate models and have specified drift as TRUE for 2 of them because it has those models with drift in the selection. the values for p, d, q and the seasonality have all been appropriately specified as well.
+
+Next we will do some post estimation analysis
+```{r}
+#residual analysis
+checkresiduals(training_set_46673.arima1)
+checkresiduals(training_set_46673.arima2)
+checkresiduals(training_set_46673.arima3)
+```
+
+For all 3 models, we can see that the residuals have an average around 0 and the variance is pretty much constant. Although we can't expect them to be exactly 0 and the variance to be exactly constant due to the number of observations we have, our results are still close enough to ideal and therefore acceptable.
+
+We also observe from the ACF plots that the residuals are all within the 95% confidence interval except for the 3rd model which has the 2nd lag outside the 97% interval. This indicates that there is no residual autocorrelation in any of the models except for maybe the 3rd model.
+
+From the histogram plots, we see that the residuals are around a mean of 0 and follow a bell shaped curve which signifies they follow a white noise process.
+
+We have also performed a Ljung-Box test on the models which is a statistical test for residual autocorrelation. For this test, the null hypothesis is that there is no residual autocorrelation and we reject it if we get a p value lower than 0.05. For all our models, we see in our results that they all have p values above 0.05 so we cannot reject the null hypothesis for any of them.
+
+Therefore, we will evaluate all the models but we expect that the 3rd one will perform the worst due to the results of the ACF plot.
+```{r}
+#forecast evaluation
+restaurant_46673.arima.f1 <- forecast(training_set_46673.arima1, h = 14)
+restaurant_46673.arima.f2 <- forecast(training_set_46673.arima2, h = 14)
+restaurant_46673.arima.f3 <- forecast(training_set_46673.arima3, h = 14)
+
+#Plot in sample
+plot(training_set_46673)
+lines(fitted(restaurant_46673.arima.f1), col = "red", lty = 2)
+lines(fitted(restaurant_46673.arima.f2), col = "blue", lty = 2)
+lines(fitted(restaurant_46673.arima.f3), col = "green", lty = 2)
+
+plot(restaurant_46673.arima.f1)
+lines(fitted(restaurant_46673.arima.f2), col = "blue", lty = 2)
+```
+We used the forecast function to get a forecast and we set h to 14 as we want a forecast over the next 2 weeks. We can see above how our forecast compares to the training data.
+
+Next we will look at the accuracy of the models
+```{r}
+# forecasting error
+accuracy(restaurant_46673.arima.f1, test_set_46673)
+accuracy(restaurant_46673.arima.f2, test_set_46673)
+accuracy(restaurant_46673.arima.f3, test_set_46673)
+```
+We can see our forecast errors for the training and test sets above and based on the RMSE the best ARIMA model is ARIMA(1,0,0)(0,1,1)[7]
+
+Finally, we can use our selected model to forecast the entire data sample.
+```{r}
+#re-calibrate model with the entire sample
+restaurant_46673.arima.model <- Arima(restaurant_46673_ts, order = c(1,0,0),seasonal = list(order = c(0,1,1), period = 7))
+restaurant_46673.model.arima.f <- forecast(restaurant_46673.arima.model, h = 14)
+autoplot(restaurant_46673.model.arima.f)
+```
+As we can see in the plot above, we now have our forecast using the ARIMA model.
+
+###Arima and ets Model Comparisons For Restaurant_46673
+We are going to comparing the accuracy of both models based on the Root Mean Squared Errors.
+```{r}
+#Accuracy of both models
+accuracy(restaurant_46673.ets.f, test_set_46673)
+accuracy(restaurant_46673.arima.f2, test_set_46673)
+```
+From the error analysis above, we can see that the ets model has a RMSE of 23.52 while the ARIMA model has an error of 21.74. Therefore, we will expect the ARIMA model to have a more accurate forecast of the lettuce demand.
